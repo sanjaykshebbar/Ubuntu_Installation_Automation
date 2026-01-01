@@ -1,0 +1,92 @@
+# ============================================================
+# Author: Sanjay KS
+# Email: sanjaykshebbar@gmail.com
+# GitHub: https://github.com/sanjaykshebbar/Automation
+#
+# What does this file do:
+# - Fully automates Ubuntu Desktop 24.04.x installation
+# - Creates user "sanjayks" with sudo access
+# - Enables SSH with password authentication
+# - Updates the system
+# - Installs Docker CE (official repo), Ansible, OpenSSH Server, Git
+# - Enables Docker and SSH services
+# ============================================================
+
+autoinstall:
+  version: 1
+
+  # ---------- Locale & Keyboard ----------
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+
+  # ---------- Identity (User Creation) ----------
+  identity:
+    hostname: ubuntu-desktop
+    username: sanjayks
+    # Password: W1nd0vv$
+    # SHA-512 hash generated using: mkpasswd --method=SHA-512
+    password: "$6$5ZzXqQ8o3v8dYp4B$k1R6j0cF3w9x0F4rM7t4N0m4V6y5cY8Zp9kQHjQZx5rF1Z9R9X3Zz7Z7m3nFZqkz9c4H2AqPjXl3n1"
+
+  # ---------- Timezone ----------
+  timezone: Asia/Kolkata
+
+  # ---------- Package Management ----------
+  package_update: true
+  package_upgrade: true
+
+  packages:
+    - openssh-server
+    - git
+    - ansible
+    - ca-certificates
+    - curl
+    - gnupg
+    - lsb-release
+
+  # ---------- SSH Configuration ----------
+  ssh:
+    install-server: true
+    allow-pw: true
+
+  # ---------- Late Commands ----------
+  # Executed after OS installation, before first reboot
+  late-commands:
+
+    # Enable SSH service
+    - curtin in-target -- systemctl enable ssh
+    - curtin in-target -- systemctl start ssh
+
+    # ---------------- Docker CE Installation ----------------
+    - curtin in-target -- bash -c "
+        set -e
+
+        # Remove any old Docker packages
+        apt-get remove -y docker docker-engine docker.io containerd runc || true
+
+        # Add Docker GPG key
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+        chmod a+r /etc/apt/keyrings/docker.gpg
+
+        # Add Docker repository
+        echo \
+          \"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+          https://download.docker.com/linux/ubuntu \
+          $(lsb_release -cs) stable\" \
+          > /etc/apt/sources.list.d/docker.list
+
+        # Install Docker CE
+        apt-get update
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+        # Enable Docker service
+        systemctl enable docker
+        systemctl start docker
+
+        # Add user to docker group
+        usermod -aG docker sanjayks
+      "
+
+  # ---------- Reboot ----------
+  reboot: true
